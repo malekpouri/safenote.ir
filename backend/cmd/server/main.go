@@ -33,6 +33,7 @@ func main() {
 
 	api := app.Group("/api")
 	api.Post("/notes", noteController.CreateNote)
+	api.Get("/notes/:id", noteController.GetNote)
 
 	log.Fatal(app.Listen(":8080"))
 }

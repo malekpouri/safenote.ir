@@ -2,8 +2,8 @@
 declare global {
     interface Window {
         Go: any;
-        encryptNote: (text: string, keyHex: string) => { encrypted?: string; error?: string };
-        decryptNote: (encryptedBase64: string, keyHex: string) => { decrypted?: string; error?: string };
+        encryptNote: (text: string, shortKey: string, password?: string) => { encrypted?: string; error?: string };
+        decryptNote: (encryptedBase64: string, shortKey: string, password?: string) => { decrypted?: string; error?: string };
     }
 }
 
@@ -35,23 +35,29 @@ export class EncryptionService {
     }
 
     async generateKey(): Promise<string> {
-        const key = new Uint8Array(32); // 256-bit key
-        crypto.getRandomValues(key);
-        return Array.from(key).map(b => b.toString(16).padStart(2, '0')).join('');
+        // Generate a 6-character random string (Base62-like)
+        const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        let result = "";
+        const values = new Uint32Array(6);
+        crypto.getRandomValues(values);
+        for (let i = 0; i < 6; i++) {
+            result += charset[values[i] % charset.length];
+        }
+        return result;
     }
 
-    async encrypt(text: string, keyHex: string): Promise<string> {
+    async encrypt(text: string, shortKey: string, password?: string): Promise<string> {
         await this.init();
-        const result = window.encryptNote(text, keyHex);
+        const result = window.encryptNote(text, shortKey, password || "");
         if (result.error) {
             throw new Error(result.error);
         }
         return result.encrypted!;
     }
 
-    async decrypt(encryptedBase64: string, keyHex: string): Promise<string> {
+    async decrypt(encryptedBase64: string, shortKey: string, password?: string): Promise<string> {
         await this.init();
-        const result = window.decryptNote(encryptedBase64, keyHex);
+        const result = window.decryptNote(encryptedBase64, shortKey, password || "");
         if (result.error) {
             throw new Error(result.error);
         }

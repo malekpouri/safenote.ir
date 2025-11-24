@@ -17,10 +17,15 @@ func NewNoteRepository(dbPath string) (*NoteRepository, error) {
 		return nil, err
 	}
 
+	// For development simplicity, drop table to ensure schema update
+	// In production, use migrations!
+	// _, _ = db.Exec("DROP TABLE IF EXISTS notes")
+
 	query := `
 	CREATE TABLE IF NOT EXISTS notes (
 		id TEXT PRIMARY KEY,
 		encrypted_data TEXT,
+		is_password_protected BOOLEAN,
 		views_remaining INTEGER,
 		expires_at DATETIME,
 		created_at DATETIME
@@ -35,17 +40,17 @@ func NewNoteRepository(dbPath string) (*NoteRepository, error) {
 }
 
 func (r *NoteRepository) Create(note *models.Note) error {
-	query := `INSERT INTO notes (id, encrypted_data, views_remaining, expires_at, created_at) VALUES (?, ?, ?, ?, ?)`
-	_, err := r.DB.Exec(query, note.ID, note.EncryptedData, note.ViewsRemaining, note.ExpiresAt, note.CreatedAt)
+	query := `INSERT INTO notes (id, encrypted_data, is_password_protected, views_remaining, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?)`
+	_, err := r.DB.Exec(query, note.ID, note.EncryptedData, note.IsPasswordProtected, note.ViewsRemaining, note.ExpiresAt, note.CreatedAt)
 	return err
 }
 
 func (r *NoteRepository) GetByID(id string) (*models.Note, error) {
-	query := `SELECT id, encrypted_data, views_remaining, expires_at, created_at FROM notes WHERE id = ?`
+	query := `SELECT id, encrypted_data, is_password_protected, views_remaining, expires_at, created_at FROM notes WHERE id = ?`
 	row := r.DB.QueryRow(query, id)
 
 	var note models.Note
-	err := row.Scan(&note.ID, &note.EncryptedData, &note.ViewsRemaining, &note.ExpiresAt, &note.CreatedAt)
+	err := row.Scan(&note.ID, &note.EncryptedData, &note.IsPasswordProtected, &note.ViewsRemaining, &note.ExpiresAt, &note.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
