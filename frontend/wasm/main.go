@@ -1,31 +1,35 @@
-package main
+package main // Force rebuild
 
 import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"io"
 	"syscall/js"
 )
 
+func deriveKey(shortKey, password string) []byte {
+	hash := sha256.Sum256([]byte(shortKey + password))
+	return hash[:]
+}
+
 func encrypt(this js.Value, args []js.Value) interface{} {
-	if len(args) != 2 {
+	if len(args) < 2 {
 		return map[string]interface{}{
-			"error": "Invalid arguments. Expected (text, keyHex)",
+			"error": "Invalid arguments. Expected (text, shortKey, [password])",
 		}
 	}
 
 	text := args[0].String()
-	keyHex := args[1].String()
-
-	key, err := hex.DecodeString(keyHex)
-	if err != nil {
-		return map[string]interface{}{
-			"error": "Invalid key format",
-		}
+	shortKey := args[1].String()
+	password := ""
+	if len(args) > 2 {
+		password = args[2].String()
 	}
+
+	key := deriveKey(shortKey, password)
 
 	block, err := aes.NewCipher(key)
 	if err != nil {
@@ -55,21 +59,20 @@ func encrypt(this js.Value, args []js.Value) interface{} {
 }
 
 func decrypt(this js.Value, args []js.Value) interface{} {
-	if len(args) != 2 {
+	if len(args) < 2 {
 		return map[string]interface{}{
-			"error": "Invalid arguments. Expected (encryptedBase64, keyHex)",
+			"error": "Invalid arguments. Expected (encryptedBase64, shortKey, [password])",
 		}
 	}
 
 	encryptedBase64 := args[0].String()
-	keyHex := args[1].String()
-
-	key, err := hex.DecodeString(keyHex)
-	if err != nil {
-		return map[string]interface{}{
-			"error": "Invalid key format",
-		}
+	shortKey := args[1].String()
+	password := ""
+	if len(args) > 2 {
+		password = args[2].String()
 	}
+
+	key := deriveKey(shortKey, password)
 
 	data, err := base64.StdEncoding.DecodeString(encryptedBase64)
 	if err != nil {
