@@ -2,12 +2,24 @@ package main
 
 import (
 	"log"
+	"safenote/internal/api/controllers"
+	"safenote/internal/repositories"
 
 	"github.com/gofiber/fiber/v2"
 )
 
 func main() {
 	app := fiber.New()
+
+	// Initialize Database
+	dbPath := "/data/sqlite.db"
+	repo, err := repositories.NewNoteRepository(dbPath)
+	if err != nil {
+		log.Fatalf("Failed to initialize database: %v", err)
+	}
+
+	// Initialize Controllers
+	noteController := controllers.NewNoteController(repo)
 
 	app.Get("/", func(c *fiber.Ctx) error {
 		return c.SendString("Hello, World!")
@@ -18,6 +30,9 @@ func main() {
 			"status": "ok",
 		})
 	})
+
+	api := app.Group("/api")
+	api.Post("/notes", noteController.CreateNote)
 
 	log.Fatal(app.Listen(":8080"))
 }
