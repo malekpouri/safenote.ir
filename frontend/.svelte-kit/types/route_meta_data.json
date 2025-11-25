@@ -1,0 +1,12 @@
+{
+	"/": [],
+	"/about": [],
+	"/api/notes": [
+		"src/routes/api/notes/+server.ts"
+	],
+	"/api/notes/[id]": [
+		"src/routes/api/notes/[id]/+server.ts"
+	],
+	"/n/[id]": [],
+	"/privacy": []
+}
