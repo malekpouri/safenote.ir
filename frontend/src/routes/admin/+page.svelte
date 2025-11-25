@@ -121,7 +121,7 @@
               href="/"
               class="text-sm text-slate-500 hover:text-indigo-600 transition-colors"
             >
-              &larr; {$t.app.title}
+              {$t.app.title}
             </a>
           </div>
         </div>
