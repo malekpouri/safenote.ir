@@ -62,5 +62,12 @@ export const en = {
     error_wrong_password: "Decryption failed. Wrong password?",
     confirm_delete: "Are you sure you want to delete this note? This cannot be undone.",
     error_not_found: "Note not found or expired"
+  },
+  admin: {
+    title: "Admin Dashboard",
+    subtitle: "Site Statistics",
+    active_notes: "Active Notes",
+    total_notes: "Total Notes Created",
+    refresh: "Refresh Stats"
   }
 };
