@@ -4,8 +4,6 @@ SafeNote is a secure, open-source web application for sharing encrypted, self-de
 
 سیف‌نوت یک برنامه وب امن و متن‌باز برای اشتراک‌گذاری یادداشت‌های رمزگذاری شده و خود-تخریب‌گر است. این برنامه با رمزگذاری داده‌ها در سمت کاربر (Client-side) قبل از ارسال به سرور، حریم خصوصی اطلاعات حساس شما را تضمین می‌کند.
 
-![SafeNote Screenshot](https://via.placeholder.com/800x400?text=SafeNote+Preview)
-
 ## Features | ویژگی‌ها
 
 ### English
