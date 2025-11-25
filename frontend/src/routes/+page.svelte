@@ -261,10 +261,20 @@
                   id="note"
                   bind:value={note}
                   rows="6"
+                  maxlength="10000"
                   class="shadow-sm block w-full text-sm border-slate-300 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 p-4 border resize-none transition-shadow focus:shadow-md"
                   placeholder={$t.create.placeholder}
                   required
                 ></textarea>
+                <div class="flex justify-end mt-1">
+                  <span
+                    class="text-xs transition-colors {note.length > 9000
+                      ? 'text-red-500 font-medium'
+                      : 'text-slate-400'}"
+                  >
+                    {note.length} / 10000
+                  </span>
+                </div>
               </div>
 
               <div class="flex justify-end">
