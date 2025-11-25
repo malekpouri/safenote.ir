@@ -35,6 +35,10 @@ func (c *NoteController) CreateNote(ctx *fiber.Ctx) error {
 		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Encrypted data is required"})
 	}
 
+	if len(req.EncryptedData) > 20000 {
+		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Note content too long"})
+	}
+
 	if req.ViewsRemaining <= 0 {
 		req.ViewsRemaining = 1 // Default to 1 view
 	}

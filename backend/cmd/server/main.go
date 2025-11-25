@@ -4,6 +4,7 @@ import (
 	"log"
 	"safenote/internal/api/controllers"
 	"safenote/internal/repositories"
+	"safenote/internal/scheduler"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -20,6 +21,10 @@ func main() {
 
 	// Initialize Controllers
 	noteController := controllers.NewNoteController(repo)
+
+	// Initialize Scheduler
+	sched := scheduler.NewScheduler(repo)
+	sched.Start()
 
 	app.Get("/", func(c *fiber.Ctx) error {
 		return c.SendString("Hello, World!")

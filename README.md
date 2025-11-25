@@ -14,6 +14,8 @@ SafeNote is a secure, open-source web application for sharing encrypted, self-de
 - **No Registration:** Use the service instantly without creating an account.
 - **Internationalization:** Full support for English and Persian (Farsi) languages with RTL layout.
 - **Responsive Design:** Optimized for desktop and mobile devices.
+- **Character Limit:** Input limit of 10,000 characters with visual feedback.
+- **Automatic Cleanup:** Expired notes are automatically deleted from the database via a background scheduler.
 
 ### فارسی
 
@@ -23,6 +25,8 @@ SafeNote is a secure, open-source web application for sharing encrypted, self-de
 - **بدون نیاز به ثبت نام:** استفاده فوری از سرویس بدون نیاز به ساخت حساب کاربری.
 - **چندزبانه:** پشتیبانی کامل از زبان‌های انگلیسی و فارسی با چیدمان راست‌چین (RTL).
 - **طراحی واکنش‌گرا:** بهینه‌شده برای دستگاه‌های دسکتاپ و موبایل.
+- **محدودیت کاراکتر:** محدودیت ورودی ۱۰,۰۰۰ کاراکتر با نمایشگر تعداد.
+- **پاکسازی خودکار:** یادداشت‌های منقضی شده به صورت خودکار توسط زمان‌بند پس‌زمینه از پایگاه داده حذف می‌شوند.
 
 ## Tech Stack | تکنولوژی‌های استفاده شده
 

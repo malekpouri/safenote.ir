@@ -69,3 +69,12 @@ func (r *NoteRepository) Delete(id string) error {
 	_, err := r.DB.Exec(query, id)
 	return err
 }
+
+func (r *NoteRepository) DeleteExpired() (int64, error) {
+	query := `DELETE FROM notes WHERE expires_at < CURRENT_TIMESTAMP OR views_remaining <= 0`
+	result, err := r.DB.Exec(query)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
