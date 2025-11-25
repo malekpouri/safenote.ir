@@ -2,6 +2,7 @@
   import { encryptionService } from "$lib/encryption";
   import { addToast } from "$lib/stores/toast";
   import { fade, slide } from "svelte/transition";
+  import { t } from "$lib/i18n";
 
   let note = "";
   let views = 1;
@@ -9,11 +10,14 @@
   let password = "";
   let showOptions = false;
   let link = "";
+  let noteId = "";
   let loading = false;
+  let deleting = false;
 
   async function createNote() {
     loading = true;
     link = "";
+    noteId = "";
 
     try {
       const shortKey = await encryptionService.generateKey();
@@ -23,11 +27,17 @@
         password
       );
 
+      let passwordHash = "";
+      if (password) {
+        passwordHash = await encryptionService.hashPassword(password);
+      }
+
       const response = await fetch("/api/notes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           encrypted_data: encryptedData,
+          password_hash: passwordHash,
           views_remaining: views,
           expiration: expiration,
           is_password_protected: !!password,
@@ -40,12 +50,13 @@
       }
 
       const data = await response.json();
+      noteId = data.id;
       const url = new URL(window.location.href);
       url.pathname = `/n/${data.id}`;
       url.hash = shortKey;
       link = url.toString();
 
-      addToast("Note created successfully!", "success");
+      addToast($t.create.toast_created, "success");
     } catch (e: any) {
       console.error(e);
       addToast(e.message || "An error occurred", "error");
@@ -54,9 +65,48 @@
     }
   }
 
+  async function deleteNote() {
+    if (!confirm($t.create.confirm_delete)) return;
+
+    deleting = true;
+    try {
+      let passwordHash = "";
+      if (password) {
+        passwordHash = await encryptionService.hashPassword(password);
+      }
+
+      const response = await fetch(`/api/notes/${noteId}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          password_hash: passwordHash,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to delete note");
+      }
+
+      addToast($t.create.toast_deleted, "success");
+      resetForm();
+    } catch (e: any) {
+      addToast(e.message, "error");
+    } finally {
+      deleting = false;
+    }
+  }
+
+  function resetForm() {
+    link = "";
+    note = "";
+    password = "";
+    showOptions = false;
+    noteId = "";
+  }
+
   function copyLink() {
     navigator.clipboard.writeText(link);
-    addToast("Link copied to clipboard!", "success");
+    addToast($t.create.toast_copied, "success");
   }
 
   function generatePassword() {
@@ -68,32 +118,41 @@
       pass += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     password = pass;
-    addToast("Random password generated", "info");
+    addToast($t.create.toast_generated, "info");
   }
 </script>
+
+<svelte:head>
+  <title>{$t.app.title} - {$t.app.subtitle}</title>
+  <meta name="description" content={$t.app.description} />
+  <meta property="og:title" content="{$t.app.title} - {$t.app.subtitle}" />
+  <meta property="og:description" content={$t.app.description} />
+  <meta property="twitter:title" content="{$t.app.title} - {$t.app.subtitle}" />
+  <meta property="twitter:description" content={$t.app.description} />
+</svelte:head>
 
 <div
   class="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 to-indigo-50"
 >
   <div
-    class="flex-grow py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center"
+    class="flex-grow py-8 px-4 sm:px-6 lg:px-8 flex items-center justify-center"
   >
     <div class="w-full max-w-2xl">
-      <div class="text-center mb-10">
+      <div class="text-center mb-8 sm:mb-10">
         <h1
-          class="text-4xl font-extrabold text-slate-900 tracking-tight sm:text-5xl mb-2"
+          class="text-2xl sm:text-4xl font-extrabold text-slate-900 tracking-tight lg:text-5xl mb-2"
         >
           Safe<span class="text-indigo-600">Note</span>
         </h1>
-        <p class="text-lg text-slate-600">
-          Share encrypted notes that self-destruct.
+        <p class="text-base sm:text-lg text-slate-600">
+          {$t.app.subtitle}
         </p>
       </div>
 
       <div
         class="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100 transition-all duration-300 hover:shadow-2xl"
       >
-        <div class="p-8">
+        <div class="p-6 sm:p-8">
           {#if link}
             <div in:fade class="space-y-6">
               <div
@@ -117,11 +176,10 @@
                   </svg>
                 </div>
                 <h3 class="text-xl font-semibold text-green-900">
-                  Note Created Successfully!
+                  {$t.create.success_title}
                 </h3>
                 <p class="mt-2 text-green-700">
-                  Copy the secure link below. It contains the decryption key and
-                  will not be shown again.
+                  {$t.create.success_message}
                 </p>
               </div>
 
@@ -129,7 +187,7 @@
                 <label
                   for="link"
                   class="block text-sm font-medium text-slate-700 mb-2"
-                  >Secure Link</label
+                  >{$t.create.label_link}</label
                 >
                 <div class="flex rounded-lg shadow-sm">
                   <input
@@ -137,28 +195,53 @@
                     id="link"
                     readonly
                     value={link}
-                    class="flex-1 block w-full rounded-l-lg border-slate-300 bg-slate-50 text-slate-600 sm:text-sm focus:ring-indigo-500 focus:border-indigo-500 p-3 border"
+                    class="flex-1 block w-full rounded-s-lg border-slate-300 bg-slate-50 text-slate-600 sm:text-sm focus:ring-indigo-500 focus:border-indigo-500 p-3 border"
                   />
                   <button
                     on:click={copyLink}
-                    class="inline-flex items-center px-6 py-3 border border-l-0 border-slate-300 rounded-r-lg bg-indigo-50 text-indigo-700 font-medium hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+                    class="inline-flex items-center px-6 py-3 border border-s-0 border-slate-300 rounded-e-lg bg-indigo-50 text-indigo-700 font-medium hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
                   >
-                    Copy
+                    {$t.create.button_copy}
                   </button>
                 </div>
               </div>
 
-              <div class="text-center pt-4">
+              <div class="flex flex-col sm:flex-row gap-4 justify-center pt-4">
                 <button
-                  on:click={() => {
-                    link = "";
-                    note = "";
-                    password = "";
-                    showOptions = false;
-                  }}
-                  class="text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
+                  on:click={resetForm}
+                  class="text-indigo-600 hover:text-indigo-800 font-medium transition-colors py-2"
                 >
-                  Create another note
+                  {$t.create.button_new}
+                </button>
+
+                <button
+                  on:click={deleteNote}
+                  disabled={deleting}
+                  class="text-red-600 hover:text-red-800 font-medium transition-colors py-2 flex items-center justify-center"
+                >
+                  {#if deleting}
+                    <svg
+                      class="animate-spin -ml-1 mr-2 h-4 w-4 text-red-600"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        class="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        stroke-width="4"
+                      ></circle>
+                      <path
+                        class="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                  {/if}
+                  {$t.create.button_delete}
                 </button>
               </div>
             </div>
@@ -172,14 +255,14 @@
                 <label
                   for="note"
                   class="block text-sm font-medium text-slate-700 mb-2"
-                  >Note Content</label
+                  >{$t.create.note_label}</label
                 >
                 <textarea
                   id="note"
                   bind:value={note}
                   rows="6"
-                  class="shadow-sm block w-full sm:text-sm border-slate-300 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 p-4 border resize-none transition-shadow focus:shadow-md"
-                  placeholder="Write your secret note here..."
+                  class="shadow-sm block w-full text-sm border-slate-300 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 p-4 border resize-none transition-shadow focus:shadow-md"
+                  placeholder={$t.create.placeholder}
                   required
                 ></textarea>
               </div>
@@ -191,7 +274,7 @@
                   on:click={() => (showOptions = !showOptions)}
                 >
                   <svg
-                    class="w-4 h-4 mr-1 transform transition-transform duration-200 {showOptions
+                    class="w-4 h-4 mx-1 transform transition-transform duration-200 {showOptions
                       ? 'rotate-180'
                       : ''}"
                     fill="none"
@@ -205,7 +288,9 @@
                       d="M19 9l-7 7-7-7"
                     />
                   </svg>
-                  {showOptions ? "Less Options" : "More Options"}
+                  {showOptions
+                    ? $t.create.less_options
+                    : $t.create.more_options}
                 </button>
               </div>
 
@@ -219,14 +304,14 @@
                       <label
                         for="views"
                         class="block text-sm font-medium text-slate-700 mb-1"
-                        >Views Limit</label
+                        >{$t.create.views_limit}</label
                       >
                       <input
                         type="number"
                         id="views"
                         bind:value={views}
                         min="1"
-                        class="block w-full sm:text-sm border-slate-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2.5 border"
+                        class="block w-full text-sm border-slate-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2.5 border"
                       />
                     </div>
 
@@ -234,17 +319,17 @@
                       <label
                         for="expiration"
                         class="block text-sm font-medium text-slate-700 mb-1"
-                        >Expiration</label
+                        >{$t.create.expiration}</label
                       >
                       <select
                         id="expiration"
                         bind:value={expiration}
-                        class="block w-full sm:text-sm border-slate-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2.5 border bg-white"
+                        class="block w-full text-sm border-slate-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2.5 border bg-white"
                       >
-                        <option value={60}>1 Hour</option>
-                        <option value={1440}>24 Hours</option>
-                        <option value={10080}>7 Days</option>
-                        <option value={43200}>30 Days</option>
+                        <option value={60}>{$t.create.hours_1}</option>
+                        <option value={1440}>{$t.create.hours_24}</option>
+                        <option value={10080}>{$t.create.days_7}</option>
+                        <option value={43200}>{$t.create.days_30}</option>
                       </select>
                     </div>
                   </div>
@@ -253,20 +338,20 @@
                     <label
                       for="password"
                       class="block text-sm font-medium text-slate-700 mb-1"
-                      >Password Protection (Optional)</label
+                      >{$t.create.password_label}</label
                     >
                     <div class="flex rounded-lg shadow-sm">
                       <input
                         type="text"
                         id="password"
                         bind:value={password}
-                        placeholder="Optional password"
-                        class="flex-1 block w-full rounded-l-lg border-slate-300 sm:text-sm focus:ring-indigo-500 focus:border-indigo-500 p-2.5 border"
+                        placeholder={$t.create.password_placeholder}
+                        class="flex-1 block w-full rounded-s-lg border-slate-300 text-sm focus:ring-indigo-500 focus:border-indigo-500 p-2.5 border"
                       />
                       <button
                         type="button"
                         on:click={generatePassword}
-                        class="inline-flex items-center px-4 py-2 border border-l-0 border-slate-300 rounded-r-lg bg-slate-100 text-slate-600 text-sm font-medium hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+                        class="inline-flex items-center px-4 py-2 border border-s-0 border-slate-300 rounded-e-lg bg-slate-100 text-slate-600 text-sm font-medium hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
                         title="Generate Random Password"
                       >
                         <svg
@@ -285,8 +370,7 @@
                       </button>
                     </div>
                     <p class="mt-1 text-xs text-slate-500">
-                      If set, the recipient must enter this password to decrypt
-                      the note.
+                      {$t.create.password_hint}
                     </p>
                   </div>
                 </div>
@@ -318,9 +402,9 @@
                       d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                     ></path>
                   </svg>
-                  Creating...
+                  {$t.create.button_creating}
                 {:else}
-                  Create Secure Note
+                  {$t.create.button_create}
                 {/if}
               </button>
             </form>
@@ -332,9 +416,12 @@
         class="max-w-3xl mx-auto mt-12 text-slate-500 text-sm space-y-4 text-center"
       >
         <p>
-          SafeNote is a free, web-based service that allows you to send
-          top-secret notes over the internet. It's fast, easy, and requires no
-          password or user registration at all.
+          {$t.app.description}
+        </p>
+      </div>
+      <div class="ms-auto mt-12 text-xs text-gray-500 dark:text-gray-400">
+        <p>
+          {$t.app.long_description}
         </p>
       </div>
     </div>
@@ -349,21 +436,22 @@
         <a
           href="/about"
           class="text-base text-slate-500 hover:text-indigo-600 transition-colors"
-          >About</a
+          >{$t.app.footer_about}</a
         >
         <a
           href="/privacy"
           class="text-base text-slate-500 hover:text-indigo-600 transition-colors"
-          >Privacy Policy</a
-        >
-        <a
-          href="mailto:admin@utux.ir"
-          class="text-base text-slate-500 hover:text-indigo-600 transition-colors"
-          >Contact</a
+          >{$t.app.footer_privacy}</a
         >
       </nav>
       <p class="mt-8 text-center text-sm text-slate-400">
-        &copy; {new Date().getFullYear()} SafeNote. All rights reserved.
+        &copy; {new Date().getFullYear()}
+        {$t.app.title}. | {$t.app.footer_powered}
+        <a
+          href="https://utux.ir"
+          class="text-indigo-600 hover:text-indigo-700 transition-colors"
+          >Utux</a
+        >. | {$t.app.footer_rights}
       </p>
     </div>
   </footer>
