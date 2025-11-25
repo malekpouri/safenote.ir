@@ -16,6 +16,7 @@ SafeNote is a secure, open-source web application for sharing encrypted, self-de
 - **Responsive Design:** Optimized for desktop and mobile devices.
 - **Character Limit:** Input limit of 10,000 characters with visual feedback.
 - **Automatic Cleanup:** Expired notes are automatically deleted from the database via a background scheduler.
+- **Admin Dashboard:** A public statistics page to view site activity (active and total notes).
 
 ### فارسی
 
@@ -27,6 +28,7 @@ SafeNote is a secure, open-source web application for sharing encrypted, self-de
 - **طراحی واکنش‌گرا:** بهینه‌شده برای دستگاه‌های دسکتاپ و موبایل.
 - **محدودیت کاراکتر:** محدودیت ورودی ۱۰,۰۰۰ کاراکتر با نمایشگر تعداد.
 - **پاکسازی خودکار:** یادداشت‌های منقضی شده به صورت خودکار توسط زمان‌بند پس‌زمینه از پایگاه داده حذف می‌شوند.
+- **داشبورد مدیریت:** صفحه آمار عمومی برای مشاهده فعالیت سایت (یادداشت‌های فعال و کل یادداشت‌ها).
 
 ## Tech Stack | تکنولوژی‌های استفاده شده
 

@@ -40,6 +40,7 @@ func main() {
 	api.Post("/notes", noteController.CreateNote)
 	api.Get("/notes/:id", noteController.GetNote)
 	api.Delete("/notes/:id", noteController.DeleteNote)
+	api.Get("/admin/stats", noteController.GetStats)
 
 	log.Fatal(app.Listen(":8080"))
 }

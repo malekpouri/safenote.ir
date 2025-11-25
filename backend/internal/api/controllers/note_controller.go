@@ -133,3 +133,11 @@ func (c *NoteController) GetNote(ctx *fiber.Ctx) error {
 		"expires_at":            note.ExpiresAt,
 	})
 }
+
+func (c *NoteController) GetStats(ctx *fiber.Ctx) error {
+	stats, err := c.Repo.GetStats()
+	if err != nil {
+		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to get stats"})
+	}
+	return ctx.JSON(stats)
+}
