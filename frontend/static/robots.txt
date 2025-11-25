@@ -1,0 +1,27 @@
+# ================================
+#   SafeNote.ir - robots.txt
+#   Prevent indexing of private areas
+#   Allow indexing of public pages for SEO
+# ================================
+
+
+# ---- Prevent indexing one-time/private note URLs (recommended) ----
+Disallow: /n/
+
+
+# ---- Block file types from indexing ----
+Disallow: /*.json$
+Disallow: /*.zip$
+Disallow: /*.pdf$
+Disallow: /*.csv$
+Disallow: /*.txt$
+
+# ---- Allow normal site crawling / SEO ----
+Allow: /
+
+# ---- Sitemap ----
+Sitemap: https://safenote.ir/sitemap.xml
+
+# ================================
+# End of File
+# ================================

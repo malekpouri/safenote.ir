@@ -4,6 +4,7 @@
   import { onMount } from "svelte";
   import { addToast } from "$lib/stores/toast";
   import { fade, scale } from "svelte/transition";
+  import { t } from "$lib/i18n";
 
   let id = $page.params.id;
   let key = "";
@@ -13,6 +14,7 @@
   let meta: any = null;
   let password = "";
   let showPasswordPrompt = false;
+  let deleting = false;
 
   onMount(async () => {
     const hash = window.location.hash;
@@ -21,7 +23,7 @@
     }
 
     if (!key) {
-      addToast("Decryption key missing from URL.", "error");
+      addToast($t.view.toast_key_missing, "error");
       return;
     }
 
@@ -29,7 +31,7 @@
       await encryptionService.init();
     } catch (e) {
       console.error("Failed to initialize WASM:", e);
-      addToast("Failed to initialize encryption service.", "error");
+      addToast($t.view.toast_init_failed, "error");
     }
   });
 
@@ -42,7 +44,7 @@
         const response = await fetch(`/api/notes/${id}`);
         if (!response.ok) {
           const data = await response.json().catch(() => ({}));
-          throw new Error(data.error || "Note not found or expired");
+          throw new Error(data.error || $t.view.error_not_found);
         }
         meta = await response.json();
       }
@@ -62,40 +64,121 @@
       );
       confirmed = true;
       showPasswordPrompt = false;
-      addToast("Note decrypted successfully", "success");
+      addToast($t.view.toast_decrypted, "success");
     } catch (e: any) {
       let msg = e.message;
       // If decryption failed, it might be wrong password
       if (meta && meta.is_password_protected && msg.includes("cipher")) {
-        msg = "Decryption failed. Wrong password?";
+        msg = $t.view.error_wrong_password;
       }
       addToast(msg, "error");
     } finally {
       loading = false;
     }
   }
+
+  async function deleteNote() {
+    if (!confirm($t.view.confirm_delete)) return;
+
+    // If password protected and we don't have it, we need to ask.
+    // But here we assume if they are on this page, they might want to delete it.
+    // If it's password protected, we need the password hash.
+
+    // If we are in "confirmed" state, we have the password.
+    // If we are in "showPasswordPrompt" state, we might have typed it but not verified.
+    // If we are in initial state, we don't have it.
+
+    // If we don't have meta, fetch it first to know if it's password protected.
+    if (!meta) {
+      try {
+        const response = await fetch(`/api/notes/${id}`);
+        if (response.ok) {
+          meta = await response.json();
+        }
+      } catch (e) {}
+    }
+
+    if (meta && meta.is_password_protected && !password) {
+      // If we don't have password, we must show prompt.
+      // If we are not already showing prompt, show it.
+      if (!showPasswordPrompt) {
+        showPasswordPrompt = true;
+        addToast($t.view.password_message, "info");
+        return;
+      }
+      // If we are showing prompt and password is empty, tell them.
+      if (!password) {
+        addToast($t.view.password_placeholder, "error");
+        return;
+      }
+    }
+
+    deleting = true;
+    try {
+      let passwordHash = "";
+      if (password) {
+        passwordHash = await encryptionService.hashPassword(password);
+      }
+
+      const response = await fetch(`/api/notes/${id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          password_hash: passwordHash,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        if (response.status === 401) {
+          throw new Error($t.view.error_wrong_password);
+        }
+        throw new Error(data.error || "Failed to delete note");
+      }
+
+      addToast("Note deleted successfully", "success");
+      // Redirect to home
+      window.location.href = "/";
+    } catch (e: any) {
+      addToast(e.message, "error");
+    } finally {
+      deleting = false;
+    }
+  }
+
+  function copyText() {
+    navigator.clipboard.writeText(noteContent);
+    addToast($t.view.toast_copied_text, "success");
+  }
 </script>
+
+<svelte:head>
+  <title>{$t.view.title} - {$t.view.subtitle}</title>
+  <meta name="description" content={$t.app.description} />
+  <meta property="og:title" content="{$t.view.title} - {$t.view.subtitle}" />
+  <meta property="og:description" content={$t.app.description} />
+</svelte:head>
 
 <div
   class="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 to-indigo-50"
 >
   <div
-    class="flex-grow py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center"
+    class="flex-grow py-8 px-4 sm:px-6 lg:px-8 flex items-center justify-center"
   >
     <div class="w-full max-w-2xl">
-      <div class="text-center mb-10">
+      <div class="text-center mb-8 sm:mb-10">
         <h1
-          class="text-4xl font-extrabold text-slate-900 tracking-tight sm:text-5xl mb-2"
+          class="text-2xl sm:text-4xl font-extrabold text-slate-900 tracking-tight lg:text-5xl mb-2"
         >
           Safe<span class="text-indigo-600">Note</span>
         </h1>
-        <p class="text-lg text-slate-600">Secure Note Viewer</p>
+        <p class="text-base sm:text-lg text-slate-600">{$t.view.subtitle}</p>
       </div>
 
       <div
         class="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100 transition-all duration-300 hover:shadow-2xl"
       >
-        <div class="p-8">
+        <div class="p-6 sm:p-8">
           {#if confirmed}
             <div in:fade class="space-y-6">
               <div
@@ -115,10 +198,9 @@
                   />
                 </svg>
                 <p class="text-sm text-yellow-800">
-                  This note has been destroyed from the server (if view limit
-                  was 1).
-                  <span class="font-bold">Copy it now</span> if you need to keep
-                  it.
+                  {$t.view.warning_destroyed}
+                  <span class="font-bold">{$t.view.warning_copy}</span>
+                  {$t.view.warning_suffix}
                 </p>
               </div>
 
@@ -126,28 +208,35 @@
                 <label
                   for="content"
                   class="block text-sm font-medium text-slate-700 mb-2"
-                  >Note Content</label
+                  >{$t.view.label_content}</label
                 >
                 <textarea
                   id="content"
                   readonly
                   value={noteContent}
                   rows="10"
-                  class="shadow-sm block w-full sm:text-sm border-slate-300 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 p-4 border bg-slate-50 resize-none font-mono text-slate-800"
+                  class="shadow-sm block w-full text-sm border-slate-300 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 p-4 border bg-slate-50 resize-none font-mono text-slate-800"
                 ></textarea>
               </div>
 
               <div
-                class="flex justify-between items-center text-xs text-slate-400 pt-2"
+                class="flex flex-col sm:flex-row justify-between items-center gap-4 pt-2"
               >
-                <span
-                  >Created: {new Date(meta.created_at).toLocaleString()}</span
+                <div class="flex gap-2">
+                  <button
+                    on:click={copyText}
+                    class="inline-flex items-center px-4 py-2 border border-slate-300 rounded-lg bg-white text-slate-700 font-medium hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+                  >
+                    {$t.view.button_copy_text}
+                  </button>
+                </div>
+
+                <button
+                  on:click={() => (window.location.href = "/")}
+                  class="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 font-medium transition-colors"
                 >
-                <a
-                  href="/"
-                  class="text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
-                  >Create new note &rarr;</a
-                >
+                  {$t.view.button_new}
+                </button>
               </div>
             </div>
           {:else if showPasswordPrompt}
@@ -171,10 +260,10 @@
                   </svg>
                 </div>
                 <h3 class="text-lg font-medium text-slate-900">
-                  Password Protected
+                  {$t.view.password_title}
                 </h3>
                 <p class="mt-1 text-slate-500">
-                  Please enter the password to unlock this note.
+                  {$t.view.password_message}
                 </p>
               </div>
 
@@ -184,18 +273,50 @@
                   type="password"
                   id="password"
                   bind:value={password}
-                  class="block w-full sm:text-sm border-slate-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-3 border text-center tracking-widest"
-                  placeholder="Enter Password"
+                  class="block w-full text-sm border-slate-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-3 border text-center tracking-widest"
+                  placeholder={$t.view.password_placeholder}
                 />
               </div>
 
-              <button
-                on:click={viewNote}
-                disabled={loading || !password}
-                class="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 transition-all transform hover:-translate-y-0.5"
-              >
-                {loading ? "Decrypting..." : "Unlock Note"}
-              </button>
+              <div class="space-y-3">
+                <button
+                  on:click={viewNote}
+                  disabled={loading || !password}
+                  class="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 transition-all transform hover:-translate-y-0.5"
+                >
+                  {loading ? $t.view.button_decrypting : $t.view.button_unlock}
+                </button>
+
+                <button
+                  on:click={deleteNote}
+                  disabled={deleting || !password}
+                  class="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl text-base font-medium text-red-600 bg-red-50 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 transition-all"
+                >
+                  {#if deleting}
+                    <svg
+                      class="animate-spin -ml-1 mr-2 h-5 w-5 text-red-600"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        class="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        stroke-width="4"
+                      ></circle>
+                      <path
+                        class="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                  {/if}
+                  {$t.view.button_delete}
+                </button>
+              </div>
             </div>
           {:else}
             <div in:fade class="text-center space-y-8 py-4">
@@ -223,20 +344,53 @@
                     />
                   </svg>
                 </div>
-                <h3 class="text-xl font-bold text-slate-900">Ready to View?</h3>
+                <h3 class="text-xl font-bold text-slate-900">
+                  {$t.view.ready_title}
+                </h3>
                 <p class="mt-2 text-slate-600 max-w-sm mx-auto">
-                  You are about to view a secure note. Viewing it may
-                  permanently destroy it from the server.
+                  {$t.view.ready_message}
                 </p>
               </div>
 
-              <button
-                on:click={viewNote}
-                disabled={loading || !key}
-                class="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 transition-all transform hover:-translate-y-0.5"
-              >
-                {loading ? "Decrypting..." : "Yes, show me the note"}
-              </button>
+              <div class="space-y-3">
+                <button
+                  on:click={viewNote}
+                  disabled={loading || !key}
+                  class="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 transition-all transform hover:-translate-y-0.5"
+                >
+                  {loading ? $t.view.button_decrypting : $t.view.button_show}
+                </button>
+
+                <button
+                  on:click={deleteNote}
+                  disabled={deleting}
+                  class="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl text-base font-medium text-red-600 bg-red-50 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 transition-all"
+                >
+                  {#if deleting}
+                    <svg
+                      class="animate-spin -ml-1 mr-2 h-5 w-5 text-red-600"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        class="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        stroke-width="4"
+                      ></circle>
+                      <path
+                        class="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                  {/if}
+                  {$t.view.button_delete}
+                </button>
+              </div>
             </div>
           {/if}
         </div>

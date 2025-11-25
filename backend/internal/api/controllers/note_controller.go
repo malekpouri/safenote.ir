@@ -19,6 +19,7 @@ func NewNoteController(repo *repositories.NoteRepository) *NoteController {
 
 type CreateNoteRequest struct {
 	EncryptedData       string `json:"encrypted_data"`
+	PasswordHash        string `json:"password_hash"`
 	IsPasswordProtected bool   `json:"is_password_protected"`
 	ViewsRemaining      int    `json:"views_remaining"`
 	Expiration          int    `json:"expiration"` // in minutes
@@ -46,14 +47,12 @@ func (c *NoteController) CreateNote(ctx *fiber.Ctx) error {
 	var id string
 	for i := 0; i < 3; i++ {
 		id = utils.GenerateShortID(6)
-		// Check if exists (omitted for brevity, assuming collision is rare or DB constraint handles it)
-		// Ideally Repo.Create should return error on duplicate key, then we retry.
-		// For now, let's just try to create.
 		expiresAt := time.Now().Add(time.Duration(req.Expiration) * time.Minute)
 
 		note := &models.Note{
 			ID:                  id,
 			EncryptedData:       req.EncryptedData,
+			PasswordHash:        req.PasswordHash,
 			IsPasswordProtected: req.IsPasswordProtected,
 			ViewsRemaining:      req.ViewsRemaining,
 			ExpiresAt:           expiresAt,
@@ -69,6 +68,36 @@ func (c *NoteController) CreateNote(ctx *fiber.Ctx) error {
 	}
 
 	return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to generate unique ID"})
+}
+
+type DeleteNoteRequest struct {
+	PasswordHash string `json:"password_hash"`
+}
+
+func (c *NoteController) DeleteNote(ctx *fiber.Ctx) error {
+	id := ctx.Params("id")
+	note, err := c.Repo.GetByID(id)
+	if err != nil {
+		return ctx.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Note not found"})
+	}
+
+	// If password protected, verify password hash
+	if note.IsPasswordProtected {
+		var req DeleteNoteRequest
+		if err := ctx.BodyParser(&req); err != nil {
+			return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
+		}
+
+		if req.PasswordHash != note.PasswordHash {
+			return ctx.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid password"})
+		}
+	}
+
+	if err := c.Repo.Delete(id); err != nil {
+		return ctx.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to delete note"})
+	}
+
+	return ctx.JSON(fiber.Map{"message": "Note deleted successfully"})
 }
 
 func (c *NoteController) GetNote(ctx *fiber.Ctx) error {
