@@ -1,9 +1,9 @@
 # Build WASM Stage
-FROM golang:1.23-alpine AS wasm-builder
+FROM golang:1.24-alpine AS wasm-builder
 WORKDIR /wasm
 COPY wasm/main.go .
 RUN GOOS=js GOARCH=wasm go build -o safenote.wasm main.go
-RUN cp "$(go env GOROOT)/misc/wasm/wasm_exec.js" .
+RUN cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" .
 
 # Build Frontend Stage
 FROM node:20-alpine AS builder

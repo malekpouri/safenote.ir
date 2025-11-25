@@ -19,7 +19,7 @@ func NewNoteRepository(dbPath string) (*NoteRepository, error) {
 
 	// For development simplicity, drop table to ensure schema update
 	// In production, use migrations!
-	_, _ = db.Exec("DROP TABLE IF EXISTS notes")
+	// _, _ = db.Exec("DROP TABLE IF EXISTS notes")
 
 	query := `
 	CREATE TABLE IF NOT EXISTS notes (
