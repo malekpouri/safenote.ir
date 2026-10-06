@@ -109,7 +109,7 @@ The first redesign was too busy. The UI now follows a minimal, single-column lay
 
 | # | Item | Status |
 |---|------|--------|
-| 5d.1 | SMS-friendly links: `https://www.safenote.ir/<6-char id>#<10-char key>` (41 characters, was 59). Old `/n/<id>` links keep working | ✅ |
+| 5d.1 | SMS-friendly links: `https://safenote.ir/<6-char id>#<10-char key>` (37 characters, was 59). Old `/n/<id>` links keep working. The bare domain 301-redirects to www and the `#key` survives the redirect | ✅ |
 | 5d.2 | Brand color, logo and a soft background glow brought back while keeping the single-column layout | ✅ |
 | 5d.3 | Note box is a card with option pills (views · expiry · password) that open the settings | ✅ |
 | 5d.4 | Gradient accent in the title, pop-in success check, icons on viewer states | ✅ |

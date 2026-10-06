@@ -31,7 +31,7 @@ Notes are encrypted in your browser. The server never sees what you write.
 |---|---|
 | 🔐 **End-to-end encryption** | AES-256-GCM in the browser via the native WebCrypto API. Only ciphertext reaches the server. |
 | 🔥 **Self-destructing notes** | Destroyed after 1–10 views or after 1 hour to 30 days, whichever comes first. |
-| ✉️ **Short, SMS-friendly links** | `https://www.safenote.ir/3mAriF#tVVZ9dSIsf`, 41 characters in total. |
+| ✉️ **Short, SMS-friendly links** | `https://safenote.ir/3mAriF#tVVZ9dSIsf`, 37 characters in total. |
 | 🔑 **Optional password** | A wrong password is rejected **without** burning the note, so typos are harmless. |
 | 🙈 **Zero-knowledge** | The key lives after the `#` in the link, a part browsers never send to servers. |
 | 🚫 **No account, no tracking** | No sign-up, analytics, ads, or third-party scripts and fonts. One cookie remembers your language. |
@@ -74,7 +74,7 @@ Notes are encrypted in your browser. The server never sees what you write.
       │  POST {ciphertext, salt, token} ──▶  stores ciphertext, salt,
       │                                      SHA-256(token)
       ▼
- share  https://www.safenote.ir/<id>#<linkKey>  ────────────────────▶  linkKey ← URL fragment
+ share  https://safenote.ir/<id>#<linkKey>  ────────────────────────▶  linkKey ← URL fragment
                                                 ◀── GET salt ──────    master, encKey, token
                                                 ◀── POST /open {token} (wrong token → 401,
                                                                         no view used)
@@ -166,7 +166,7 @@ Every UI string lives in `frontend/src/lib/i18n/en.ts` and `fa.ts`. The Persian 
 
 - 🔐 **رمزنگاری سرتاسری:** AES-256-GCM با WebCrypto در مرورگر؛ سرور فقط متن رمزشده را می‌بیند.
 - 🔥 **خودتخریب:** نابودی پس از ۱ تا ۱۰ بازدید یا پس از ۱ ساعت تا ۳۰ روز.
-- ✉️ **لینک کوتاه، مناسب پیامک:** فقط ۴۱ کاراکتر، مانند `https://www.safenote.ir/3mAriF#tVVZ9dSIsf`.
+- ✉️ **لینک کوتاه، مناسب پیامک:** فقط ۳۷ کاراکتر، مانند `https://safenote.ir/3mAriF#tVVZ9dSIsf`.
 - 🔑 **رمز عبور اختیاری:** رمز اشتباه یادداشت را نمی‌سوزاند.
 - 🙈 **بدون دسترسی سرور:** کلید در بخش `#` لینک است و هرگز به سرور ارسال نمی‌شود.
 - 🚫 **بدون ثبت‌نام و ردیابی:** بدون آنالیتیکس، تبلیغات، اسکریپت یا فونت شخص ثالث.

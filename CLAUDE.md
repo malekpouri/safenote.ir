@@ -39,7 +39,7 @@ The build prints warnings that SvelteKit imports `untrack`, `fork` and `settled`
 - A new backend endpoint needs a matching proxy route.
 
 **Encryption (`frontend/src/lib/crypto.ts`, the core of the design):**
-- `linkKey` is 10 random base64url chars (60 bits) in the URL fragment. Links are `/<id>#<linkKey>` with a 6-char ID (`src/params/noteid.ts`). The older `/n/<id>` route still works. Both render `src/lib/components/NoteViewer.svelte`. Links are kept short on purpose (SMS).
+- `linkKey` is 10 random base64url chars (60 bits) in the URL fragment. Links are `/<id>#<linkKey>` with a 6-char ID (`src/params/noteid.ts`). The older `/n/<id>` route still works. Both render `src/lib/components/NoteViewer.svelte`. Links are kept short on purpose (SMS). On SafeNote's own domain they use the bare `https://safenote.ir` (`shareOrigin()` in `src/lib/site.ts`), which redirects to www and keeps the fragment.
 - `master = PBKDF2-SHA256(linkKey ‖ password, salt = "safenote/v2" ‖ salt, 600k)`. The 16-byte salt is random per note; the server stores it in `kdf_salt` and returns it from `GET /api/notes/:id`.
 - The stretching is what makes the short key safe: it makes offline brute force by someone holding the database impractical. Don't lower the iterations or the key length without redoing that math.
 - HKDF over `master` derives two values:

@@ -4,7 +4,7 @@
 	import { NOTE_MAX_CHARS, encryptNote, generateLinkKey, generatePassword } from '$lib/crypto';
 	import { addToast } from '$lib/stores/toast';
 	import { dateTime, fmt, num, t } from '$lib/i18n';
-	import { DEFAULT_EXPIRATION, EXPIRATION_OPTIONS, SITE_URL, VIEW_OPTIONS } from '$lib/site';
+	import { DEFAULT_EXPIRATION, EXPIRATION_OPTIONS, SITE_URL, VIEW_OPTIONS, shareOrigin } from '$lib/site';
 	import { apiErrorMessage } from '$lib/api';
 	import Icon from '$lib/components/Icon.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
@@ -64,7 +64,7 @@
 
 			created = {
 				id: data.id,
-				link: `${window.location.origin}/${data.id}#${linkKey}`,
+				link: `${shareOrigin(window.location)}/${data.id}#${linkKey}`,
 				accessToken,
 				views,
 				expiresAt: data.expires_at,
