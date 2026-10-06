@@ -1,468 +1,380 @@
 <script lang="ts">
-  import { encryptionService } from "$lib/encryption";
-  import { addToast } from "$lib/stores/toast";
-  import { fade, slide } from "svelte/transition";
-  import { t } from "$lib/i18n";
+	import { tick } from 'svelte';
+	import { fade, slide } from 'svelte/transition';
+	import { NOTE_MAX_CHARS, encryptNote, generateLinkKey, generatePassword } from '$lib/crypto';
+	import { addToast } from '$lib/stores/toast';
+	import { dateTime, fmt, num, t } from '$lib/i18n';
+	import { DEFAULT_EXPIRATION, EXPIRATION_OPTIONS, SITE_URL, VIEW_OPTIONS } from '$lib/site';
+	import { apiErrorMessage } from '$lib/api';
+	import Icon from '$lib/components/Icon.svelte';
+	import Spinner from '$lib/components/Spinner.svelte';
 
-  let note = "";
-  let views = 1;
-  let expiration = 43200; // Default 30 days
-  let password = "";
-  let showOptions = false;
-  let link = "";
-  let noteId = "";
-  let loading = false;
-  let deleting = false;
+	let note = '';
+	let views: number = VIEW_OPTIONS[0];
+	let expiration: number = DEFAULT_EXPIRATION;
+	let password = '';
+	let showPassword = false;
+	let showOptions = false;
+	let loading = false;
 
-  async function createNote() {
-    loading = true;
-    link = "";
-    noteId = "";
+	let created: {
+		id: string;
+		link: string;
+		accessToken: string;
+		views: number;
+		expiresAt: string;
+		hasPassword: boolean;
+	} | null = null;
+	let copied = false;
+	let confirmingDelete = false;
+	let deleting = false;
+	let linkInput: HTMLTextAreaElement;
+	const canShare = typeof navigator !== 'undefined' && 'share' in navigator;
+	const isDesktop = () => typeof window !== 'undefined' && window.matchMedia('(min-width: 640px)').matches;
 
-    try {
-      const shortKey = await encryptionService.generateKey();
-      const encryptedData = await encryptionService.encrypt(
-        note,
-        shortKey,
-        password
-      );
+	$: expirationLabels = {
+		60: $t.home.hours_1,
+		1440: $t.home.hours_24,
+		10080: $t.home.days_7,
+		43200: $t.home.days_30
+	} as Record<number, string>;
+	$: viewsLabel = (n: number) => fmt(n === 1 ? $t.home.views_option : $t.home.views_option_plural, { n: $num(n) });
+	$: nearLimit = note.length > NOTE_MAX_CHARS - 1000;
 
-      let passwordHash = "";
-      if (password) {
-        passwordHash = await encryptionService.hashPassword(password);
-      }
+	async function createNote() {
+		if (!note.trim() || loading) return;
+		loading = true;
+		try {
+			const linkKey = generateLinkKey();
+			const { payload, accessToken, salt } = await encryptNote(note, linkKey, password);
+			const res = await fetch('/api/notes', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					encrypted_data: payload,
+					access_token: accessToken,
+					salt,
+					is_password_protected: !!password,
+					views_remaining: views,
+					expiration
+				})
+			});
+			const data = await res.json().catch(() => ({}));
+			if (!res.ok) throw new Error(apiErrorMessage(res.status, $t, data.error));
 
-      const response = await fetch("/api/notes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          encrypted_data: encryptedData,
-          password_hash: passwordHash,
-          views_remaining: views,
-          expiration: expiration,
-          is_password_protected: !!password,
-        }),
-      });
+			created = {
+				id: data.id,
+				link: `${window.location.origin}/${data.id}#${linkKey}`,
+				accessToken,
+				views,
+				expiresAt: data.expires_at,
+				hasPassword: !!password
+			};
+			note = '';
+			await tick();
+			window.scrollTo({ top: 0 });
+			// On phones, programmatic selection pops up selection handles; only do it on desktop.
+			if (isDesktop()) linkInput?.select();
+		} catch (e) {
+			addToast(e instanceof Error ? e.message : $t.toast.error, 'error');
+		} finally {
+			loading = false;
+		}
+	}
 
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || "Failed to create note");
-      }
+	function onKeydown(e: KeyboardEvent) {
+		if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+			e.preventDefault();
+			createNote();
+		}
+	}
 
-      const data = await response.json();
-      noteId = data.id;
-      const url = new URL(window.location.href);
-      url.pathname = `/n/${data.id}`;
-      url.hash = shortKey;
-      link = url.toString();
+	async function copyLink() {
+		if (!created) return;
+		try {
+			await navigator.clipboard.writeText(created.link);
+			copied = true;
+			setTimeout(() => (copied = false), 2000);
+		} catch {
+			linkInput?.select();
+			addToast($t.toast.copy_failed, 'error');
+		}
+	}
 
-      addToast($t.create.toast_created, "success");
-    } catch (e: any) {
-      console.error(e);
-      addToast(e.message || "An error occurred", "error");
-    } finally {
-      loading = false;
-    }
-  }
+	async function shareLink() {
+		if (!created) return;
+		try {
+			await navigator.share({ title: $t.app.title, url: created.link });
+		} catch {
+			/* user cancelled */
+		}
+	}
 
-  async function deleteNote() {
-    if (!confirm($t.create.confirm_delete)) return;
+	async function deleteNote() {
+		if (!created) return;
+		deleting = true;
+		try {
+			const res = await fetch(`/api/notes/${created.id}`, {
+				method: 'DELETE',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ access_token: created.accessToken })
+			});
+			if (!res.ok && res.status !== 404) {
+				const data = await res.json().catch(() => ({}));
+				throw new Error(apiErrorMessage(res.status, $t, data.error));
+			}
+			addToast($t.toast.deleted, 'success');
+			reset();
+		} catch (e) {
+			addToast(e instanceof Error ? e.message : $t.toast.error, 'error');
+		} finally {
+			deleting = false;
+			confirmingDelete = false;
+		}
+	}
 
-    deleting = true;
-    try {
-      let passwordHash = "";
-      if (password) {
-        passwordHash = await encryptionService.hashPassword(password);
-      }
+	function reset() {
+		created = null;
+		password = '';
+		showPassword = false;
+		showOptions = false;
+		confirmingDelete = false;
+	}
 
-      const response = await fetch(`/api/notes/${noteId}`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          password_hash: passwordHash,
-        }),
-      });
+	/** Pills open the options panel and focus the matching field. */
+	async function openOption(field: 'views' | 'expiration' | 'password') {
+		showOptions = true;
+		await tick();
+		document.getElementById(field)?.focus();
+	}
 
-      if (!response.ok) {
-        throw new Error("Failed to delete note");
-      }
-
-      addToast($t.create.toast_deleted, "success");
-      resetForm();
-    } catch (e: any) {
-      addToast(e.message, "error");
-    } finally {
-      deleting = false;
-    }
-  }
-
-  function resetForm() {
-    link = "";
-    note = "";
-    password = "";
-    showOptions = false;
-    noteId = "";
-  }
-
-  function copyLink() {
-    navigator.clipboard.writeText(link);
-    addToast($t.create.toast_copied, "success");
-  }
-
-  function generatePassword() {
-    const chars =
-      "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
-    let pass = "";
-    const len = Math.floor(Math.random() * (8 - 4 + 1)) + 4; // 4 to 8 chars
-    for (let i = 0; i < len; i++) {
-      pass += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    password = pass;
-    addToast($t.create.toast_generated, "info");
-  }
+	function useGeneratedPassword() {
+		password = generatePassword();
+		showPassword = true;
+	}
 </script>
 
 <svelte:head>
-  <title>{$t.app.title} - {$t.app.subtitle}</title>
-  <meta name="description" content={$t.app.description} />
-  <meta property="og:title" content="{$t.app.title} - {$t.app.subtitle}" />
-  <meta property="og:description" content={$t.app.description} />
-  <meta property="twitter:title" content="{$t.app.title} - {$t.app.subtitle}" />
-  <meta property="twitter:description" content={$t.app.description} />
+	<title>{$t.app.title} · {$t.app.tagline}</title>
+	<link rel="canonical" href="{SITE_URL}/" />
+	<meta property="og:title" content="{$t.app.title} · {$t.app.tagline}" />
+	<meta property="og:description" content={$t.app.description} />
+	<meta name="twitter:title" content="{$t.app.title} · {$t.app.tagline}" />
+	<meta name="twitter:description" content={$t.app.description} />
 </svelte:head>
 
-<div
-  class="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 to-indigo-50"
->
-  <div
-    class="flex-grow py-8 px-4 sm:px-6 lg:px-8 flex items-center justify-center"
-  >
-    <div class="w-full max-w-2xl">
-      <div class="text-center mb-8 sm:mb-10">
-        <h1
-          class="text-2xl sm:text-4xl font-extrabold text-slate-900 tracking-tight lg:text-5xl mb-2"
-        >
-          Safe<span class="text-indigo-600">Note</span>
-        </h1>
-        <p class="text-base sm:text-lg text-slate-600">
-          {$t.app.subtitle}
-        </p>
-      </div>
+<section class="container-narrow pt-6 sm:pt-14">
+	{#if created}
+		<div in:fade={{ duration: 200 }} class="text-center">
+			<span class="mx-auto flex h-14 w-14 animate-pop items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400">
+				<Icon name="check" class="h-7 w-7" strokeWidth={2.5} />
+			</span>
+			<h1 class="page-title mt-5">{$t.success.title}</h1>
+			<p class="page-subtitle">{$t.success.message}</p>
+		</div>
 
-      <div
-        class="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100 transition-all duration-300 hover:shadow-2xl"
-      >
-        <div class="p-6 sm:p-8">
-          {#if link}
-            <div in:fade class="space-y-6">
-              <div
-                class="bg-green-50 border border-green-200 rounded-xl p-6 text-center"
-              >
-                <div
-                  class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4"
-                >
-                  <svg
-                    class="h-6 w-6 text-green-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                </div>
-                <h3 class="text-xl font-semibold text-green-900">
-                  {$t.create.success_title}
-                </h3>
-                <p class="mt-2 text-green-700">
-                  {$t.create.success_message}
-                </p>
-              </div>
+		<div class="card mt-7 p-2" in:fade={{ duration: 200, delay: 100 }}>
+			<label for="link" class="sr-only">{$t.success.link_label}</label>
+			<!-- A textarea so the whole link, including the key after #, wraps and stays visible on phones. -->
+			<textarea
+				bind:this={linkInput}
+				id="link"
+				readonly
+				rows={isDesktop() ? 1 : 2}
+				value={created.link}
+				dir="ltr"
+				class="block w-full resize-none break-all border-0 bg-transparent px-3 py-2 font-mono text-base leading-7 text-slate-800 focus:outline-none focus:ring-0 sm:text-sm dark:text-slate-100"
+				on:click={(e) => e.currentTarget.select()}
+			></textarea>
+			<div class="flex gap-2">
+				<button type="button" class="btn-primary btn-lg flex-1" on:click={copyLink}>
+					<Icon name={copied ? 'check' : 'copy'} class="h-4 w-4" />
+					{copied ? $t.success.copied : $t.success.copy}
+				</button>
+				{#if canShare}
+					<button type="button" class="btn-secondary btn-lg" on:click={shareLink} aria-label={$t.success.share}>
+						<Icon name="share" class="h-4 w-4" />
+					</button>
+				{/if}
+			</div>
+		</div>
 
-              <div>
-                <label
-                  for="link"
-                  class="block text-sm font-medium text-slate-700 mb-2"
-                  >{$t.create.label_link}</label
-                >
-                <div class="flex rounded-lg shadow-sm">
-                  <input
-                    type="text"
-                    id="link"
-                    readonly
-                    value={link}
-                    class="flex-1 block w-full rounded-s-lg border-slate-300 bg-slate-50 text-slate-600 sm:text-sm focus:ring-indigo-500 focus:border-indigo-500 p-3 border"
-                  />
-                  <button
-                    on:click={copyLink}
-                    class="inline-flex items-center px-6 py-3 border border-s-0 border-slate-300 rounded-e-lg bg-indigo-50 text-indigo-700 font-medium hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
-                  >
-                    {$t.create.button_copy}
-                  </button>
-                </div>
-              </div>
+		<ul class="mt-4 flex flex-wrap justify-center gap-2 text-[13px] text-slate-500 dark:text-slate-400">
+			<li class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 dark:bg-slate-800/70">
+				<Icon name="fire" class="h-3.5 w-3.5 text-orange-500" />
+				{fmt(created.views === 1 ? $t.success.summary_views : $t.success.summary_views_plural, { n: $num(created.views) })}
+			</li>
+			<li class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 dark:bg-slate-800/70">
+				<Icon name="clock" class="h-3.5 w-3.5 text-brand-500" />
+				{fmt($t.success.summary_expires, { date: $dateTime(created.expiresAt) })}
+			</li>
+		</ul>
+		{#if created.hasPassword}
+			<p class="muted mt-3 flex items-center justify-center gap-1.5 text-center">
+				<Icon name="key" class="h-4 w-4 shrink-0 text-amber-500" />
+				{$t.success.summary_password}
+			</p>
+		{/if}
 
-              <div class="flex flex-col sm:flex-row gap-4 justify-center pt-4">
-                <button
-                  on:click={resetForm}
-                  class="text-indigo-600 hover:text-indigo-800 font-medium transition-colors py-2"
-                >
-                  {$t.create.button_new}
-                </button>
+		<div class="mt-8 flex flex-wrap items-center justify-between gap-x-4">
+			<button type="button" class="btn-text" on:click={reset}>
+				<Icon name="plus" class="h-4 w-4" />
+				{$t.success.new_note}
+			</button>
+			{#if confirmingDelete}
+				<span class="flex items-center gap-4" in:fade={{ duration: 100 }}>
+					<span class="muted">{$t.success.delete_confirm}</span>
+					<button type="button" class="btn-text-danger font-semibold" on:click={deleteNote} disabled={deleting}>
+						{#if deleting}<Spinner />{/if}
+						{$t.success.delete_yes}
+					</button>
+					<button type="button" class="btn-text" on:click={() => (confirmingDelete = false)}>{$t.success.cancel}</button>
+				</span>
+			{:else}
+				<button type="button" class="btn-text-danger" on:click={() => (confirmingDelete = true)}>
+					{$t.success.delete}
+				</button>
+			{/if}
+		</div>
+	{:else}
+		<div in:fade={{ duration: 200 }}>
+			<h1 class="page-title">
+				{$t.home.title_lead}
+				<span class="text-gradient whitespace-nowrap">{$t.home.title_accent}</span>
+			</h1>
+			<p class="page-subtitle">{$t.home.subtitle}</p>
 
-                <button
-                  on:click={deleteNote}
-                  disabled={deleting}
-                  class="text-red-600 hover:text-red-800 font-medium transition-colors py-2 flex items-center justify-center"
-                >
-                  {#if deleting}
-                    <svg
-                      class="animate-spin -ml-1 mr-2 h-4 w-4 text-red-600"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        class="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        stroke-width="4"
-                      ></circle>
-                      <path
-                        class="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
-                  {/if}
-                  {$t.create.button_delete}
-                </button>
-              </div>
-            </div>
-          {:else}
-            <form
-              on:submit|preventDefault={createNote}
-              class="space-y-6"
-              in:fade
-            >
-              <div>
-                <label
-                  for="note"
-                  class="block text-sm font-medium text-slate-700 mb-2"
-                  >{$t.create.note_label}</label
-                >
-                <textarea
-                  id="note"
-                  bind:value={note}
-                  rows="6"
-                  maxlength="10000"
-                  class="shadow-sm block w-full text-sm border-slate-300 rounded-xl focus:ring-indigo-500 focus:border-indigo-500 p-4 border resize-none transition-shadow focus:shadow-md"
-                  placeholder={$t.create.placeholder}
-                  required
-                ></textarea>
-                <div class="flex justify-end mt-1">
-                  <span
-                    class="text-xs transition-colors {note.length > 9000
-                      ? 'text-red-500 font-medium'
-                      : 'text-slate-400'}"
-                  >
-                    {note.length} / 10000
-                  </span>
-                </div>
-              </div>
+			<form on:submit|preventDefault={createNote} class="mt-6">
+				<div class="card transition focus-within:border-brand-300 focus-within:ring-4 focus-within:ring-brand-500/10 dark:focus-within:border-brand-600">
+					<label for="note" class="sr-only">{$t.home.note_label}</label>
+					<textarea
+						id="note"
+						bind:value={note}
+						on:keydown={onKeydown}
+						rows="6"
+						maxlength={NOTE_MAX_CHARS}
+						class="block min-h-[10rem] w-full resize-y max-[359px]:h-[7.5rem] max-[359px]:min-h-[7.5rem] rounded-t-2xl border-0 bg-transparent px-4 pb-2 pt-4 text-base leading-7 placeholder:text-slate-400 focus:outline-none focus:ring-0 sm:text-[15px] dark:placeholder:text-slate-600"
+						placeholder={$t.home.placeholder}
+						autocomplete="off"
+						spellcheck="false"
+						required
+					></textarea>
 
-              <div class="flex justify-end">
-                <button
-                  type="button"
-                  class="text-sm font-medium text-indigo-600 hover:text-indigo-800 flex items-center transition-colors"
-                  on:click={() => (showOptions = !showOptions)}
-                >
-                  <svg
-                    class="w-4 h-4 mx-1 transform transition-transform duration-200 {showOptions
-                      ? 'rotate-180'
-                      : ''}"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M19 9l-7 7-7-7"
-                    />
-                  </svg>
-                  {showOptions
-                    ? $t.create.less_options
-                    : $t.create.more_options}
-                </button>
-              </div>
+					<div class="flex flex-wrap items-center gap-1.5 px-3 pb-3 sm:gap-2">
+						<button type="button" class="chip" class:chip-on={views > 1} on:click={() => openOption('views')}>
+							<Icon name="fire" class="h-3.5 w-3.5 text-orange-500" />
+							{viewsLabel(views)}
+						</button>
+						<button type="button" class="chip" on:click={() => openOption('expiration')}>
+							<Icon name="clock" class="h-3.5 w-3.5 text-brand-500" />
+							{expirationLabels[expiration]}
+						</button>
+						<button
+							type="button"
+							class="chip"
+							class:chip-on={!!password}
+							on:click={() => openOption('password')}
+							aria-label={$t.home.password_label}
+						>
+							<Icon name={password ? 'lock' : 'key'} class="h-3.5 w-3.5 text-amber-500" />
+							<!-- Icon-only on very narrow phones so the three pills stay on one row. -->
+							<span class="max-[359px]:hidden">{$t.home.password_label}</span>
+						</button>
+						{#if nearLimit}
+							<span class="ms-auto pe-1 text-xs tabular-nums text-slate-400" aria-live="polite">
+								{fmt($t.home.chars, { n: $num(note.length), max: $num(NOTE_MAX_CHARS) })}
+							</span>
+						{/if}
+					</div>
 
-              {#if showOptions}
-                <div
-                  transition:slide
-                  class="bg-slate-50 p-6 rounded-xl border border-slate-100 space-y-6"
-                >
-                  <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                    <div>
-                      <label
-                        for="views"
-                        class="block text-sm font-medium text-slate-700 mb-1"
-                        >{$t.create.views_limit}</label
-                      >
-                      <input
-                        type="number"
-                        id="views"
-                        bind:value={views}
-                        min="1"
-                        class="block w-full text-sm border-slate-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2.5 border"
-                      />
-                    </div>
+					{#if showOptions}
+						<div
+							id="note-options"
+							class="space-y-4 rounded-b-2xl border-t border-slate-100 bg-slate-50/70 px-4 pb-4 pt-4 dark:border-slate-800 dark:bg-slate-950/40"
+							transition:slide={{ duration: 160 }}
+						>
+							<div class="grid grid-cols-2 gap-3">
+								<div>
+									<label for="views" class="label">{$t.home.views_label}</label>
+									<select id="views" bind:value={views} class="input">
+										{#each VIEW_OPTIONS as v}
+											<option value={v}>{viewsLabel(v)}</option>
+										{/each}
+									</select>
+								</div>
+								<div>
+									<label for="expiration" class="label">{$t.home.expires_label}</label>
+									<select id="expiration" bind:value={expiration} class="input">
+										{#each EXPIRATION_OPTIONS as minutes}
+											<option value={minutes}>{expirationLabels[minutes]}</option>
+										{/each}
+									</select>
+								</div>
+							</div>
+							<div>
+								<label for="password" class="label">
+									{$t.home.password_label}
+									<span class="text-slate-400 dark:text-slate-500">({$t.home.password_optional})</span>
+								</label>
+								<div class="relative">
+									<input
+										id="password"
+										type={showPassword ? 'text' : 'password'}
+										value={password}
+										on:input={(e) => (password = e.currentTarget.value)}
+										class="input pe-[5.5rem]"
+										placeholder={$t.home.password_placeholder}
+										autocomplete="new-password"
+										autocapitalize="off"
+										autocorrect="off"
+										spellcheck="false"
+										enterkeyhint="done"
+									/>
+									<div class="absolute inset-y-0 end-0.5 flex items-center">
+										<button
+											type="button"
+											class="icon-btn hover:text-brand-600"
+											on:click={useGeneratedPassword}
+											aria-label={$t.home.password_generate}
+											title={$t.home.password_generate}
+										>
+											<Icon name="sparkles" class="h-4 w-4" />
+										</button>
+										<button
+											type="button"
+											class="icon-btn"
+											on:click={() => (showPassword = !showPassword)}
+											aria-label={showPassword ? $t.home.password_hide : $t.home.password_show}
+											title={showPassword ? $t.home.password_hide : $t.home.password_show}
+										>
+											<Icon name={showPassword ? 'eye-off' : 'eye'} class="h-4 w-4" />
+										</button>
+									</div>
+								</div>
+								{#if password}
+									<p class="mt-1.5 text-xs text-slate-500 dark:text-slate-400">{$t.home.password_hint}</p>
+								{/if}
+							</div>
+						</div>
+					{/if}
+				</div>
 
-                    <div>
-                      <label
-                        for="expiration"
-                        class="block text-sm font-medium text-slate-700 mb-1"
-                        >{$t.create.expiration}</label
-                      >
-                      <select
-                        id="expiration"
-                        bind:value={expiration}
-                        class="block w-full text-sm border-slate-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2.5 border bg-white"
-                      >
-                        <option value={60}>{$t.create.hours_1}</option>
-                        <option value={1440}>{$t.create.hours_24}</option>
-                        <option value={10080}>{$t.create.days_7}</option>
-                        <option value={43200}>{$t.create.days_30}</option>
-                      </select>
-                    </div>
-                  </div>
+				<button type="submit" class="btn-primary btn-lg mt-4 w-full" disabled={loading || !note.trim()}>
+					{#if loading}
+						<Spinner class="h-4 w-4" />
+						{$t.home.submitting}
+					{:else}
+						<Icon name="lock" class="h-4 w-4" />
+						{$t.home.submit}
+					{/if}
+				</button>
+			</form>
 
-                  <div>
-                    <label
-                      for="password"
-                      class="block text-sm font-medium text-slate-700 mb-1"
-                      >{$t.create.password_label}</label
-                    >
-                    <div class="flex rounded-lg shadow-sm">
-                      <input
-                        type="text"
-                        id="password"
-                        bind:value={password}
-                        placeholder={$t.create.password_placeholder}
-                        class="flex-1 block w-full rounded-s-lg border-slate-300 text-sm focus:ring-indigo-500 focus:border-indigo-500 p-2.5 border"
-                      />
-                      <button
-                        type="button"
-                        on:click={generatePassword}
-                        class="inline-flex items-center px-4 py-2 border border-s-0 border-slate-300 rounded-e-lg bg-slate-100 text-slate-600 text-sm font-medium hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
-                        title="Generate Random Password"
-                      >
-                        <svg
-                          class="w-5 h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                          />
-                        </svg>
-                      </button>
-                    </div>
-                    <p class="mt-1 text-xs text-slate-500">
-                      {$t.create.password_hint}
-                    </p>
-                  </div>
-                </div>
-              {/if}
-
-              <button
-                type="submit"
-                disabled={loading || !note}
-                class="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:-translate-y-0.5"
-              >
-                {#if loading}
-                  <svg
-                    class="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      class="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      stroke-width="4"
-                    ></circle>
-                    <path
-                      class="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                  {$t.create.button_creating}
-                {:else}
-                  {$t.create.button_create}
-                {/if}
-              </button>
-            </form>
-          {/if}
-        </div>
-      </div>
-
-      <div
-        class="max-w-3xl mx-auto mt-12 text-slate-500 text-sm space-y-4 text-center"
-      >
-        <p>
-          {$t.app.description}
-        </p>
-      </div>
-      <div class="ms-auto mt-12 text-xs text-gray-500 dark:text-gray-400">
-        <p>
-          {$t.app.long_description}
-        </p>
-      </div>
-    </div>
-  </div>
-
-  <footer class="bg-white border-t border-slate-200 mt-auto">
-    <div class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-      <nav
-        class="flex flex-wrap justify-center gap-x-8 gap-y-4"
-        aria-label="Footer"
-      >
-        <a
-          href="/about"
-          class="text-base text-slate-500 hover:text-indigo-600 transition-colors"
-          >{$t.app.footer_about}</a
-        >
-        <a
-          href="/privacy"
-          class="text-base text-slate-500 hover:text-indigo-600 transition-colors"
-          >{$t.app.footer_privacy}</a
-        >
-      </nav>
-      <p class="mt-8 text-center text-sm text-slate-400">
-        &copy; {new Date().getFullYear()}
-        {$t.app.title}. | {$t.app.footer_powered}
-        <a
-          href="https://utux.ir"
-          class="text-indigo-600 hover:text-indigo-700 transition-colors"
-          >Utux</a
-        >. | {$t.app.footer_rights}
-      </p>
-    </div>
-  </footer>
-</div>
+			<p class="muted mt-6 flex flex-wrap items-center justify-center gap-x-1.5 text-center">
+				<Icon name="shield" class="h-4 w-4 text-emerald-500" />
+				{$t.home.footnote}
+				<a href="/about" class="link whitespace-nowrap">{$t.home.learn_more}</a>
+			</p>
+		</div>
+	{/if}
+</section>

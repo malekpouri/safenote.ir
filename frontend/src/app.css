@@ -1,3 +1,131 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+	:root {
+		color-scheme: light dark;
+		-webkit-tap-highlight-color: transparent;
+		-webkit-text-size-adjust: 100%;
+		text-size-adjust: 100%;
+	}
+	/* Removes the 300ms double-tap delay on mobile. */
+	a,
+	button,
+	input,
+	select,
+	textarea,
+	summary,
+	label {
+		touch-action: manipulation;
+	}
+	html {
+		@apply antialiased;
+	}
+	html[lang='fa'] body {
+		@apply font-fa;
+	}
+	body {
+		@apply min-h-[100dvh] bg-white font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100;
+	}
+	::selection {
+		@apply bg-brand-100 text-brand-950 dark:bg-brand-800 dark:text-white;
+	}
+	:focus-visible {
+		@apply outline-none ring-2 ring-brand-500 ring-offset-2 ring-offset-white dark:ring-offset-slate-950;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		*,
+		*::before,
+		*::after {
+			animation-duration: 0.01ms !important;
+			transition-duration: 0.01ms !important;
+		}
+	}
+}
+
+@layer components {
+	/* One narrow column for every page. */
+	.container-narrow {
+		@apply mx-auto w-full max-w-xl;
+		padding-left: max(1.25rem, env(safe-area-inset-left));
+		padding-right: max(1.25rem, env(safe-area-inset-right));
+	}
+	.page-title {
+		@apply text-[1.75rem] font-bold leading-tight tracking-tight sm:text-[2rem];
+	}
+	.page-subtitle {
+		@apply mt-2 text-[15px] leading-6 text-slate-500 dark:text-slate-400;
+	}
+	.label {
+		@apply mb-1.5 block text-sm text-slate-600 dark:text-slate-400;
+	}
+	/* 16px text on phones keeps iOS from zooming into focused fields. */
+	.input {
+		@apply block min-h-[44px] w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-base text-slate-900 placeholder:text-slate-400
+			transition focus:border-brand-400 focus:outline-none focus:ring-4 focus:ring-brand-500/10
+			sm:min-h-0 sm:text-[15px]
+			dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-600 dark:focus:border-brand-500;
+	}
+	.btn {
+		@apply inline-flex min-h-[44px] select-none items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-[15px] font-semibold transition
+			disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-0 sm:text-sm;
+	}
+	.btn-lg {
+		@apply py-3 sm:text-[15px];
+	}
+	.btn-primary {
+		@apply btn bg-gradient-to-b from-brand-500 to-brand-600 text-white shadow-md shadow-brand-600/25 ring-1 ring-inset ring-white/10
+			hover:from-brand-600 hover:to-brand-700 active:scale-[0.99] disabled:shadow-none
+			dark:from-brand-500 dark:to-brand-600 dark:shadow-brand-900/40;
+	}
+	.btn-secondary {
+		@apply btn border border-slate-200 bg-white text-slate-700 hover:border-brand-200 hover:text-brand-700
+			dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-brand-700 dark:hover:text-brand-300;
+	}
+	.btn-text {
+		@apply inline-flex min-h-[44px] items-center gap-1.5 text-sm text-slate-500 transition-colors hover:text-slate-900
+			disabled:opacity-40 sm:min-h-0 dark:text-slate-400 dark:hover:text-white;
+	}
+	.btn-text-danger {
+		@apply btn-text text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300;
+	}
+	.link {
+		@apply font-medium text-brand-600 underline decoration-brand-200 underline-offset-4 transition-colors hover:decoration-brand-500
+			dark:text-brand-400 dark:decoration-brand-800 dark:hover:decoration-brand-400;
+	}
+	.icon-btn {
+		@apply inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:text-slate-700 dark:hover:text-slate-200;
+	}
+	.card {
+		@apply rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgb(15_23_42/0.04),0_16px_40px_-16px_rgb(79_70_229/0.22)]
+			dark:border-slate-800 dark:bg-slate-900 dark:shadow-none;
+	}
+	/* Small rounded option buttons inside the composer. */
+	.chip {
+		@apply inline-flex min-h-[40px] items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 text-[13px] max-[359px]:gap-1 max-[359px]:px-2.5 max-[359px]:text-[12px] font-medium text-slate-600 transition
+			hover:border-brand-300 hover:text-brand-700 sm:min-h-[34px]
+			dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-brand-500 dark:hover:text-brand-300;
+	}
+	.chip-on {
+		@apply border-brand-200 bg-brand-50 text-brand-700 dark:border-brand-700 dark:bg-brand-500/10 dark:text-brand-300;
+	}
+	.text-gradient {
+		@apply bg-gradient-to-r from-brand-600 via-violet-500 to-fuchsia-500 bg-clip-text text-transparent
+			dark:from-brand-400 dark:via-violet-400 dark:to-fuchsia-400;
+	}
+	.muted {
+		@apply text-sm text-slate-500 dark:text-slate-400;
+	}
+	.pb-safe {
+		padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+	}
+	.prose-page h2 {
+		@apply mb-2 mt-10 text-base font-semibold;
+	}
+	.prose-page p,
+	.prose-page li,
+	.prose-page dd {
+		@apply text-[15px] leading-7 text-slate-600 dark:text-slate-400;
+	}
+}

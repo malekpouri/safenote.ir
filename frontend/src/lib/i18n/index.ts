@@ -1,43 +1,55 @@
-import { writable, derived } from 'svelte/store';
+import { derived, writable } from 'svelte/store';
 import { en } from './en';
 import { fa } from './fa';
+import { LOCALE_COOKIE, dirOf, type Locale } from './locale';
 
-export type Locale = 'en' | 'fa';
+export type { Locale } from './locale';
 
-const translations = {
-    en,
-    fa
-};
+const translations = { en, fa };
 
-function createI18nStore() {
-    const { subscribe, set, update } = writable<Locale>('en');
+function createLocaleStore() {
+	const { subscribe, set } = writable<Locale>('en');
 
-    return {
-        subscribe,
-        set: (locale: Locale) => {
-            set(locale);
-            if (typeof document !== 'undefined') {
-                document.documentElement.lang = locale;
-                document.documentElement.dir = locale === 'fa' ? 'rtl' : 'ltr';
-            }
-        },
-        toggle: () => update(l => {
-            const next = l === 'en' ? 'fa' : 'en';
-            if (typeof document !== 'undefined') {
-                document.documentElement.lang = next;
-                document.documentElement.dir = next === 'fa' ? 'rtl' : 'ltr';
-            }
-            return next;
-        })
-    };
+	function apply(locale: Locale, persist: boolean) {
+		set(locale);
+		if (typeof document === 'undefined') return;
+		document.documentElement.lang = locale;
+		document.documentElement.dir = dirOf(locale);
+		if (persist) {
+			document.cookie = `${LOCALE_COOKIE}=${locale}; path=/; max-age=31536000; samesite=lax`;
+		}
+	}
+
+	return {
+		subscribe,
+		/** Sync with the server-resolved locale (no cookie write). */
+		init: (locale: Locale) => apply(locale, false),
+		/** User-initiated change; remembered via cookie so SSR matches next time. */
+		set: (locale: Locale) => apply(locale, true)
+	};
 }
 
-export const locale = createI18nStore();
+export const locale = createLocaleStore();
 
-export const t = derived(locale, ($locale) => {
-    return translations[$locale];
+export const t = derived(locale, ($locale) => translations[$locale]);
+
+export const dir = derived(locale, dirOf);
+
+/** Replaces {name} placeholders. */
+export function fmt(template: string, vars: Record<string, string | number>): string {
+	return template.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? `{${k}}`));
+}
+
+/** Locale-aware number formatting (Persian digits for fa). */
+export const num = derived(locale, ($locale) => {
+	const f = new Intl.NumberFormat($locale === 'fa' ? 'fa-IR' : 'en-US');
+	return (n: number) => f.format(n);
 });
 
-export const dir = derived(locale, ($locale) => {
-    return $locale === 'fa' ? 'rtl' : 'ltr';
+export const dateTime = derived(locale, ($locale) => {
+	const f = new Intl.DateTimeFormat($locale === 'fa' ? 'fa-IR' : 'en-US', {
+		dateStyle: 'medium',
+		timeStyle: 'short'
+	});
+	return (d: Date | string) => f.format(new Date(d));
 });

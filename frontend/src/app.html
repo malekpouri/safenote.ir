@@ -1,32 +1,28 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <link rel="icon" href="%sveltekit.assets%/favicon.png" />
-    <meta name="viewport" content="width=device-width" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Vazirmatn:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    %sveltekit.head%
-    <title>SafeNote - Secure, Encrypted Notes</title>
-    <meta name="description" content="Share encrypted notes that self-destruct. Free, secure, and anonymous. | اشتراک‌گذاری یادداشت‌های رمزنگاری شده که خود به خود نابود می‌شوند." />
-    <meta name="keywords" content="secure note, encrypted note, self-destruct note, privnote clone, safenote, یادداشت امن, یادداشت رمزنگاری شده, یادداشت خود تخریب گر" />
-    
-    <!-- Open Graph / Facebook -->
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://safenote.ir/" />
-    <meta property="og:title" content="SafeNote - Secure, Encrypted Notes" />
-    <meta property="og:description" content="Share encrypted notes that self-destruct. Free, secure, and anonymous." />
-    <meta property="og:image" content="https://safenote.ir/og-image.jpg" />
+<!doctype html>
+<html lang="%lang%" dir="%dir%">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+		<meta name="theme-color" content="#4f46e5" media="(prefers-color-scheme: light)" />
+		<meta name="theme-color" content="#020617" media="(prefers-color-scheme: dark)" />
+		<meta name="color-scheme" content="light dark" />
+		<link rel="icon" href="%sveltekit.assets%/favicon.svg" type="image/svg+xml" />
+		<link rel="icon" href="%sveltekit.assets%/favicon.png" sizes="any" />
+		<link rel="apple-touch-icon" href="%sveltekit.assets%/apple-touch-icon.png" />
+		<link rel="manifest" href="%sveltekit.assets%/site.webmanifest" />
+		<meta name="keywords" content="secure note, encrypted note, self-destruct note, one-time secret, safenote, یادداشت امن, یادداشت رمزنگاری شده, یادداشت خود تخریب گر" />
 
-    <!-- Twitter -->
-    <meta property="twitter:card" content="summary_large_image" />
-    <meta property="twitter:url" content="https://safenote.ir/" />
-    <meta property="twitter:title" content="SafeNote - Secure, Encrypted Notes" />
-    <meta property="twitter:description" content="Share encrypted notes that self-destruct. Free, secure, and anonymous." />
-    <meta property="twitter:image" content="https://safenote.ir/og-image.jpg" />
-  </head>
-  <body data-sveltekit-preload-data="hover">
-    <div style="display: contents">%sveltekit.body%</div>
-  </body>
+		<meta property="og:type" content="website" />
+		<meta property="og:site_name" content="SafeNote" />
+		<meta property="og:url" content="https://www.safenote.ir/" />
+		<meta property="og:image" content="https://www.safenote.ir/og-image.png" />
+		<meta property="og:image:width" content="1200" />
+		<meta property="og:image:height" content="630" />
+		<meta name="twitter:card" content="summary_large_image" />
+		<meta name="twitter:image" content="https://www.safenote.ir/og-image.png" />
+		%sveltekit.head%
+	</head>
+	<body data-sveltekit-preload-data="hover">
+		<div style="display: contents">%sveltekit.body%</div>
+	</body>
 </html>

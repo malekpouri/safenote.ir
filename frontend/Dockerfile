@@ -1,34 +1,25 @@
-# Build WASM Stage
-FROM golang:1.24-alpine AS wasm-builder
-WORKDIR /wasm
-COPY wasm/main.go .
-RUN GOOS=js GOARCH=wasm go build -o safenote.wasm main.go
-RUN cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" .
-
-# Build Frontend Stage
+# Build stage
 FROM node:20-alpine AS builder
-
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm install
+RUN npm ci
 
 COPY . .
-# Copy WASM artifacts to static folder so they are served
-COPY --from=wasm-builder /wasm/safenote.wasm ./static/safenote.wasm
-COPY --from=wasm-builder /wasm/wasm_exec.js ./static/wasm_exec.js
-
 RUN npm run build
 
-# Run Stage
+# Run stage: adapter-node bundles all dependencies into build/, so the runtime
+# image needs no node_modules.
 FROM node:20-alpine
-
 WORKDIR /app
+ENV NODE_ENV=production
 
 COPY --from=builder /app/build ./build
 COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/node_modules ./node_modules
 
+USER node
 EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
+  CMD wget -q -O /dev/null http://127.0.0.1:3000/robots.txt || exit 1
 
 CMD ["node", "build"]

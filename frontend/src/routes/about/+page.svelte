@@ -1,73 +1,55 @@
-<div class="min-h-screen bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
-  <div
-    class="max-w-3xl mx-auto bg-white rounded-xl shadow-md overflow-hidden p-8"
-  >
-    <h1 class="text-3xl font-bold text-gray-900 mb-6">About SafeNote</h1>
+<script lang="ts">
+	import { num, t } from '$lib/i18n';
+	import { CONTACT_EMAIL, GITHUB_URL, SITE_URL } from '$lib/site';
 
-    <div class="prose prose-indigo text-gray-600 space-y-6">
-      <p>
-        Have you ever wanted to send confidential information to family or
-        friends, but were afraid to do so over the internet, because some
-        malicious hacker could be spying on you? SafeNote is a free web based
-        service that allows you to send top secret notes over the internet. It's
-        fast, easy, and requires no password or user registration at all.
-      </p>
-      <p>
-        Just write your note, and you'll get a link. Then you copy and paste
-        that link into an email (or instant message) that you send to the person
-        who you want to read the note. When that person clicks the link for the
-        first time, they will see the note in their browser and the note will
-        automatically self-destruct; which means no one (even that very same
-        person) can read the note again. The link won't work anymore.
-      </p>
-      <p>
-        If you have any questions, feel free to submit your inquiry via e-mail
-        to <a
-          href="mailto:admin@utux.ir"
-          class="text-indigo-600 hover:text-indigo-500">admin@utux.ir</a
-        >, and remember to check our Frequently Asked Questions first.
-      </p>
-      <p>
-        If you are concerned about Privacy issues, please read our <a
-          href="/privacy"
-          class="text-indigo-600 hover:text-indigo-500">Privacy Policy</a
-        >.
-      </p>
+	$: steps = [
+		[$t.how.step1_title, $t.how.step1_body],
+		[$t.how.step2_title, $t.how.step2_body],
+		[$t.how.step3_title, $t.how.step3_body]
+	];
+	$: faqs = [
+		[$t.faq.q1, $t.faq.a1],
+		[$t.faq.q2, $t.faq.a2],
+		[$t.faq.q3, $t.faq.a3],
+		[$t.faq.q4, $t.faq.a4]
+	];
+</script>
 
-      <h2 class="text-xl font-semibold text-gray-900">Features of SafeNote</h2>
-      <ul class="list-disc pl-5 space-y-2">
-        <li>No registration required.</li>
-        <li>Send fast and easy messages.</li>
-        <li>High security; notes self-destruct after viewing.</li>
-        <li>Privacy is ensured.</li>
-      </ul>
+<svelte:head>
+	<title>{$t.about.title} · {$t.app.title}</title>
+	<link rel="canonical" href="{SITE_URL}/about" />
+	<meta property="og:title" content="{$t.about.title} · {$t.app.title}" />
+</svelte:head>
 
-      <h2 class="text-xl font-semibold text-gray-900">How to use SafeNote</h2>
-      <ol class="list-decimal pl-5 space-y-2">
-        <li>Write your confidential note.</li>
-        <li>Receive a unique link.</li>
-        <li>Send the link via email or instant message.</li>
-        <li>Recipient views the note and it self-destructs.</li>
-      </ol>
+<article class="container-narrow prose-page pt-6 sm:pt-16">
+	<h1 class="page-title">{$t.about.title}</h1>
+	<p class="mt-3">{$t.about.lead}</p>
 
-      <p>
-        For any questions or support, you can reach us at <a
-          href="mailto:admin@utux.ir"
-          class="text-indigo-600 hover:text-indigo-500">admin@utux.ir</a
-        >.
-      </p>
-      <p>
-        Read our <a
-          href="/privacy"
-          class="text-indigo-600 hover:text-indigo-500">Privacy Policy</a
-        > to learn more about data security.
-      </p>
-    </div>
+	<h2 id="how">{$t.how.title}</h2>
+	<ol class="space-y-3">
+		{#each steps as [title, body], i}
+			<li class="flex gap-3">
+				<span class="w-4 shrink-0 tabular-nums text-slate-400">{$num(i + 1)}.</span>
+				<span><strong class="font-medium text-slate-900 dark:text-white">{title}.</strong> {body}</span>
+			</li>
+		{/each}
+	</ol>
 
-    <div class="mt-8 text-center">
-      <a href="/" class="text-indigo-600 hover:text-indigo-500 font-medium"
-        >Back to Home</a
-      >
-    </div>
-  </div>
-</div>
+	<h2 id="faq">{$t.faq.title}</h2>
+	<dl class="space-y-5">
+		{#each faqs as [q, a]}
+			<div>
+				<dt class="text-[15px] font-medium">{q}</dt>
+				<dd class="mt-1">{a}</dd>
+			</div>
+		{/each}
+	</dl>
+
+	<h2>{$t.about.contact_title}</h2>
+	<p>
+		{$t.about.contact_body}
+		<a href="mailto:{CONTACT_EMAIL}" class="link" dir="ltr">{CONTACT_EMAIL}</a>
+		{$t.about.contact_or}
+		<a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" class="link">GitHub</a>.
+	</p>
+</article>

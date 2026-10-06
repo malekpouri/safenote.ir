@@ -1,46 +1,68 @@
 package main
 
 import (
+	"context"
 	"log"
-	"safenote/internal/api/controllers"
+	"os"
+	"os/signal"
+	"safenote/internal/api"
 	"safenote/internal/repositories"
 	"safenote/internal/scheduler"
-
-	"github.com/gofiber/fiber/v2"
+	"strconv"
+	"syscall"
+	"time"
 )
 
-func main() {
-	app := fiber.New()
+func env(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
 
-	// Initialize Database
-	dbPath := "/data/sqlite.db"
+func envInt(key string, fallback int) int {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		log.Fatalf("%s must be an integer, got %q", key, v)
+	}
+	return n
+}
+
+func main() {
+	dbPath := env("DB_PATH", "/data/sqlite.db")
 	repo, err := repositories.NewNoteRepository(dbPath)
 	if err != nil {
-		log.Fatalf("Failed to initialize database: %v", err)
+		log.Fatalf("Failed to initialize database at %s: %v", dbPath, err)
 	}
 
-	// Initialize Controllers
-	noteController := controllers.NewNoteController(repo)
-
-	// Initialize Scheduler
-	sched := scheduler.NewScheduler(repo)
-	sched.Start()
-
-	app.Get("/", func(c *fiber.Ctx) error {
-		return c.SendString("Hello, World!")
+	app, _ := api.NewApp(repo, api.Options{
+		CreateRateLimit: envInt("RATE_LIMIT_CREATE", 20),
+		ReadRateLimit:   envInt("RATE_LIMIT_READ", 60),
 	})
 
-	app.Get("/health", func(c *fiber.Ctx) error {
-		return c.JSON(fiber.Map{
-			"status": "ok",
-		})
-	})
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
-	api := app.Group("/api")
-	api.Post("/notes", noteController.CreateNote)
-	api.Get("/notes/:id", noteController.GetNote)
-	api.Delete("/notes/:id", noteController.DeleteNote)
-	api.Get("/admin/stats", noteController.GetStats)
+	scheduler.NewScheduler(repo).Start(ctx)
 
-	log.Fatal(app.Listen(":8080"))
+	addr := ":" + env("PORT", "8080")
+	go func() {
+		log.Printf("SafeNote backend listening on %s (db: %s)", addr, dbPath)
+		if err := app.Listen(addr); err != nil {
+			log.Fatalf("server error: %v", err)
+		}
+	}()
+
+	<-ctx.Done()
+	log.Println("Shutting down...")
+	if err := app.ShutdownWithTimeout(10 * time.Second); err != nil {
+		log.Printf("shutdown: %v", err)
+	}
+	if err := repo.Close(); err != nil {
+		log.Printf("closing database: %v", err)
+	}
 }

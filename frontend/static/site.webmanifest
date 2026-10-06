@@ -1,0 +1,13 @@
+{
+	"name": "SafeNote",
+	"short_name": "SafeNote",
+	"description": "Share encrypted notes that self-destruct.",
+	"start_url": "/",
+	"display": "standalone",
+	"background_color": "#f8fafc",
+	"theme_color": "#4f46e5",
+	"icons": [
+		{ "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+		{ "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+	]
+}

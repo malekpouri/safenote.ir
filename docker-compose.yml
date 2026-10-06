@@ -3,10 +3,12 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    # ports:
-    #   - "8080:8080" # Not exposed to host, only accessible within the network
+    # Not exposed to the host; only reachable from the frontend on app_network.
     environment:
       - DB_PATH=/data/sqlite.db
+      # Requests per minute per client IP (0 disables).
+      - RATE_LIMIT_CREATE=20
+      - RATE_LIMIT_READ=60
     volumes:
       - ./database:/data
     networks:
@@ -21,8 +23,12 @@ services:
       - "8081:3000"
     environment:
       - INTERNAL_API_URL=http://backend:8080
+      - ORIGIN=https://www.safenote.ir
+      # The client IP is taken from X-Forwarded-For (last hop) or X-Real-IP set
+      # by your reverse proxy; make sure it sets one of them.
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     networks:
       - app_network
     restart: unless-stopped
